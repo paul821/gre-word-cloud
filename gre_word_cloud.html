@@ -1,0 +1,321 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>GRE Word Cloud</title>
+<style>
+*{margin:0;padding:0;box-sizing:border-box}
+body{background:#0d1117;color:#e6edf3;font-family:'Segoe UI',system-ui,-apple-system,sans-serif;overflow:hidden;width:100vw;height:100vh;user-select:none}
+#world{position:absolute;transform-origin:0 0;will-change:transform}
+.cluster-group{position:absolute}
+.cluster-bg{border-radius:50%;opacity:.08;position:absolute;cursor:pointer;transition:opacity .2s}
+.cluster-bg:hover{opacity:.15}
+.cluster-label{position:absolute;text-align:center;font-size:11px;color:#8b949e;letter-spacing:.5px;text-transform:uppercase;pointer-events:none;white-space:nowrap}
+.word-bubble{position:absolute;border-radius:50%;display:flex;align-items:center;justify-content:center;text-align:center;cursor:pointer;transition:transform .18s,box-shadow .18s,opacity .3s;font-weight:600;line-height:1.15;padding:4px}
+.word-bubble:hover{transform:scale(1.18)!important;z-index:100!important}
+.word-bubble.src-Y{background:rgba(250,204,21,.12);border:2px solid rgba(250,204,21,.55);color:#fde68a}
+.word-bubble.src-R{background:rgba(248,113,113,.10);border:2px dashed rgba(248,113,113,.55);color:#fca5a5}
+.word-bubble.src-RA{background:rgba(192,132,252,.10);border:2px dashed rgba(192,132,252,.55);color:#d8b4fe}
+.word-bubble.faded{opacity:.08!important}
+.word-bubble.highlighted{box-shadow:0 0 18px 4px rgba(99,102,241,.7)!important;transform:scale(1.15)!important;z-index:99!important}
+
+#legend{position:fixed;top:18px;left:18px;z-index:200;background:rgba(22,27,34,.92);border:1px solid #30363d;border-radius:12px;padding:14px 18px;font-size:13px;backdrop-filter:blur(8px)}
+#legend h3{font-size:13px;margin-bottom:10px;color:#8b949e;font-weight:500;letter-spacing:.5px;text-transform:uppercase}
+.legend-item{display:flex;align-items:center;gap:10px;margin:7px 0}
+.legend-dot{width:16px;height:16px;border-radius:50%;flex-shrink:0}
+.legend-dot.y-dot{background:rgba(250,204,21,.15);border:2px solid rgba(250,204,21,.6)}
+.legend-dot.r-dot{background:rgba(248,113,113,.12);border:2px dashed rgba(248,113,113,.6)}
+.legend-dot.ra-dot{background:rgba(192,132,252,.12);border:2px dashed rgba(192,132,252,.6)}
+
+#search-box{position:fixed;top:18px;right:18px;z-index:200}
+#search-box input{background:rgba(22,27,34,.92);border:1px solid #30363d;border-radius:10px;padding:10px 16px;color:#e6edf3;font-size:14px;width:240px;outline:none;backdrop-filter:blur(8px)}
+#search-box input::placeholder{color:#484f58}
+#search-box input:focus{border-color:#58a6ff}
+
+#controls{position:fixed;bottom:18px;left:50%;transform:translateX(-50%);z-index:200;display:flex;gap:8px;background:rgba(22,27,34,.92);border:1px solid #30363d;border-radius:12px;padding:8px 14px;backdrop-filter:blur(8px)}
+.ctrl-btn{background:rgba(110,118,129,.15);border:1px solid #30363d;border-radius:8px;padding:7px 16px;color:#8b949e;font-size:12px;cursor:pointer;transition:all .2s;font-weight:500;letter-spacing:.3px}
+.ctrl-btn:hover,.ctrl-btn.active{background:rgba(56,189,248,.18);border-color:#58a6ff;color:#58a6ff}
+
+#modal-overlay{position:fixed;inset:0;background:rgba(0,0,0,.6);z-index:300;display:none;align-items:center;justify-content:center;backdrop-filter:blur(3px)}
+#modal-overlay.show{display:flex}
+#modal{background:#161b22;border:1px solid #30363d;border-radius:16px;padding:28px 32px;max-width:520px;width:90%;max-height:80vh;overflow-y:auto;position:relative}
+#modal h2{font-size:20px;margin-bottom:4px;color:#e6edf3}
+#modal .modal-meaning{font-size:14px;color:#8b949e;margin-bottom:18px;font-style:italic}
+#modal .word-chips{display:flex;flex-wrap:wrap;gap:8px}
+.word-chip{padding:7px 14px;border-radius:20px;font-size:13px;cursor:pointer;transition:all .2s;font-weight:500}
+.word-chip:hover{transform:scale(1.08)}
+.word-chip.src-Y{background:rgba(250,204,21,.12);border:1px solid rgba(250,204,21,.4);color:#fde68a}
+.word-chip.src-R{background:rgba(248,113,113,.10);border:1px dashed rgba(248,113,113,.4);color:#fca5a5}
+.word-chip.src-RA{background:rgba(192,132,252,.10);border:1px dashed rgba(192,132,252,.4);color:#d8b4fe}
+#modal .word-def{margin-top:14px;padding:12px 16px;background:rgba(110,118,129,.08);border-radius:10px;font-size:14px;color:#c9d1d9;display:none;line-height:1.5}
+#modal-close{position:absolute;top:14px;right:18px;background:none;border:none;color:#8b949e;font-size:22px;cursor:pointer}
+#modal-close:hover{color:#e6edf3}
+
+#tooltip{position:fixed;z-index:250;background:rgba(22,27,34,.95);border:1px solid #30363d;border-radius:10px;padding:10px 14px;font-size:13px;pointer-events:none;display:none;max-width:280px;line-height:1.4;color:#c9d1d9;backdrop-filter:blur(6px)}
+#tooltip .tt-word{font-weight:700;color:#e6edf3;margin-bottom:4px;font-size:14px}
+</style>
+</head>
+<body>
+<div id="legend">
+  <h3>GRE Word Cloud &middot; 636 words</h3>
+  <div class="legend-item"><div class="legend-dot y-dot"></div><span>Somewhat know (221)</span></div>
+  <div class="legend-item"><div class="legend-dot r-dot"></div><span>Don't know &ndash; Essential (119)</span></div>
+  <div class="legend-item"><div class="legend-dot ra-dot"></div><span>Don't know &ndash; Advanced (296)</span></div>
+</div>
+<div id="search-box"><input type="text" id="search" placeholder="Search words..."></div>
+<div id="controls">
+  <button class="ctrl-btn active" data-filter="all">All (636)</button>
+  <button class="ctrl-btn" data-filter="Y">Somewhat (221)</button>
+  <button class="ctrl-btn" data-filter="R">Essential (119)</button>
+  <button class="ctrl-btn" data-filter="RA">Advanced (296)</button>
+</div>
+<div id="world"></div>
+<div id="tooltip"><div class="tt-word"></div><div class="tt-def"></div></div>
+<div id="modal-overlay"><div id="modal"><button id="modal-close">&times;</button><h2 id="modal-title"></h2><div class="modal-meaning" id="modal-meaning"></div><div class="word-chips" id="modal-chips"></div><div class="word-def" id="modal-def"></div></div></div>
+
+<script>
+const DATA = [{"name": "Angry, Harsh & Critical", "meaning": "Words describing anger, irritability, severe criticism, verbal attacks, and bitterness", "color": "#f87171", "words": [["irascible", "Irritable, easily angered", "Y"], ["surly", "Bad-tempered, hostile, rude", "Y"], ["scathing", "Bitterly harsh or critical", "Y"], ["tirade", "Bitter, abusive verbal attack", "Y"], ["abrasive", "Rough; causing irritation", "Y"], ["censure", "Strong disapproval or official reprimand", "Y"], ["reproach", "Blame; criticize, express disappointment", "Y"], ["sardonic", "Scornfully mocking, derisive", "Y"], ["fervid", "Very hot; heated in passion or enthusiasm", "Y"], ["vituperate", "Verbally abuse, criticize harshly", "R"], ["castigate", "Criticize severely; punish to correct", "R"], ["denigrate", "Belittle, attack the reputation", "R"], ["caustic", "Corrosive; very critical or sarcastic", "R"], ["diatribe", "Bitter, abusive criticism, rant", "R"], ["lampoon", "Harsh satire; ridicule or satirize", "R"], ["din", "Loud, confused noise for a long period", "R"], ["quibble", "Make trivial arguments; find faults in a petty way", "R"], ["dyspeptic", "Grumpy, pessimistic, irritable", "RA"], ["fractious", "Unruly, troublemaking; irritable", "RA"], ["querulous", "Given to complaining, grumbling", "RA"], ["curmudgeon", "Bad-tempered, difficult person; grouch", "RA"], ["harangue", "Long, intense verbal attack delivered publicly", "RA"], ["fulminate", "Attack verbally in a vehement, thunderous way", "RA"], ["invective", "Violent denunciation; insults or verbal abuse", "RA"], ["vitriol", "Something highly caustic, such as criticism", "RA"], ["nettle", "Irritate, sting, or annoy", "RA"], ["upbraid", "Find fault with, criticize or scold severely", "RA"], ["grouse", "Complain or grumble", "RA"], ["acidulous", "Slightly acid or sour; sharp or sarcastic", "RA"], ["grating", "Irritating; harsh or discordant", "RA"], ["asperity", "Rigor, severity; harshness of tone", "RA"], ["vociferous", "Noisily crying out, as in protest", "RA"], ["umbrage", "Offense or annoyance (take umbrage)", "RA"], ["disparage", "Belittle, put down", "RA"], ["fracas", "Noisy disturbance or fight; brawl", "RA"], ["pejorative", "Disparaging, derogatory, belittling", "RA"], ["glower", "Stare in an angry, sullen way", "RA"], ["imprecation", "Curse; prayer for harm to come to someone", "RA"], ["malediction", "A curse", "RA"], ["baying", "Howling in a deep way, like a dog or wolf", "RA"]]}, {"name": "Degrade, Harm & Corrupt", "meaning": "Words describing lowering status, damaging, moral depravity, wickedness, and disgrace", "color": "#ef4444", "words": [["abase", "Degrade; lower in rank or esteem", "Y"], ["debase", "Lower in quality, value, or moral quality", "Y"], ["ignoble", "Not noble; mean, base motives", "Y"], ["deface", "Vandalize, mar the appearance of", "Y"], ["stigma", "Mark of disgrace", "Y"], ["transgression", "Violation of a law or moral rule; sin", "Y"], ["pernicious", "Very harmful or destructive, deadly", "Y"], ["blight", "Cause of decay or destruction", "Y"], ["impair", "Make worse, weaken", "Y"], ["undermine", "Weaken, cause to collapse", "Y"], ["sap", "Weaken, undermine, tire out", "Y"], ["egregious", "Extraordinarily bad; glaring", "Y"], ["adverse", "Opposing, harmful", "Y"], ["squelch", "Crush, suppress or silence", "Y"], ["deleterious", "Harmful, unhealthful", "R"], ["onerous", "Burdensome, oppressive", "R"], ["base", "Morally low, dishonorable; counterfeit", "R"], ["sully", "Make dirty, stain, tarnish", "RA"], ["invidious", "Hateful, offensive, injurious", "RA"], ["inimical", "Hostile, adverse, harmful", "RA"], ["virulent", "Extremely infectious, poisonous; bitter, hateful", "RA"], ["turpitude", "Depravity, baseness of character", "RA"], ["opprobrium", "Disgrace from outrageously shameful actions", "RA"], ["iniquity", "Injustice, wickedness, sin", "RA"], ["reprobate", "Disreputable, unprincipled, depraved", "RA"], ["scurvy", "Contemptible, mean", "RA"], ["unconscionable", "Not guided by conscience; morally wrong", "RA"], ["adulterate", "Make impure by adding inferior ingredients", "RA"], ["wanton", "Reckless, vicious; sexually unrestrained", "RA"], ["licentious", "Sexually unrestrained; morally uncontrolled", "RA"]]}, {"name": "Deceptive & Cunning", "meaning": "Words describing trickery, fraud, dishonesty, scheming, and false appearances", "color": "#fb923c", "words": [["bogus", "Fake, fraudulent", "Y"], ["phony", "Fake, counterfeit; insincere", "Y"], ["chicanery", "Trickery, deception by false arguments", "Y"], ["whitewash", "Covering up of wrongs or misdeeds", "Y"], ["crafty", "Cunning, skillful in deception", "Y"], ["machinations", "Crafty schemes or plots", "Y"], ["fallacious", "Logically unsound, deceptive", "Y"], ["mannered", "Having an artificial manner", "Y"], ["mendacious", "Lying, habitually dishonest", "R"], ["guile", "Clever deceit, cunning, craftiness", "R"], ["wily", "Crafty, cunning", "R"], ["specious", "Seemingly true but actually false", "R"], ["apocryphal", "Of questionable authenticity; false", "R"], ["belie", "Contradict or misrepresent", "R"], ["affectation", "Fake behavior to give a desired impression", "R"], ["perfidious", "Disloyal, treacherous", "R"], ["bilk", "Cheat or defraud", "RA"], ["hoodwink", "Trick, deceive", "RA"], ["dissemble", "Mislead, conceal the truth", "RA"], ["legerdemain", "Sleight of hand; trickery or deception", "RA"], ["canard", "Rumor, a false or baseless story", "RA"], ["prevaricate", "Lie, stray from the truth, mislead", "RA"], ["ostensible", "Professed or pretended; outwardly appearing", "RA"], ["stratagem", "Military maneuver to deceive; artful scheme", "RA"], ["inveigle", "Entice, lure; get something by flattery or cleverness", "RA"], ["malinger", "Pretend to be sick to get out of work", "RA"], ["travesty", "Exaggerated, debased, or grotesque imitation", "RA"], ["ersatz", "Artificial, synthetic; being an inferior substitute", "RA"], ["tendentious", "Marked by a strong point of view, biased", "RA"]]}, {"name": "Calm & Peaceful", "meaning": "Words describing tranquility, serenity, soothing, reconciliation, and peaceful life", "color": "#7dd3fc", "words": [["placid", "Peaceful, calm, tranquil", "Y"], ["bucolic", "Suggesting a peaceful and pleasant view of rural life", "Y"], ["rustic", "Relating to country life, unsophisticated, primitive", "Y"], ["monastic", "Relating to a monastery \u2014 quiet, secluded, contemplative", "Y"], ["seraphic", "Like an angel; serene, spiritually transported", "Y"], ["lull", "Soothe or cause to fall asleep; a period of calm", "Y"], ["mollify", "Calm or soothe; lessen anger", "Y"], ["conciliatory", "Reconciling, appeasing, attempting to make peace", "Y"], ["console", "Lessen the suffering or grief of", "Y"], ["temperance", "Moderation, self-control", "Y"], ["placate", "Satisfy or calm down an angry person", "R"], ["assuage", "Make milder, relieve, soothe, pacify", "R"], ["salubrious", "Healthful, promoting health", "R"], ["halcyon", "Calm and peaceful, carefree; prosperous, happy", "RA"], ["repose", "The act or state of resting; peacefulness, tranquility", "RA"], ["quiescent", "Quiet, still", "RA"], ["anodyne", "Medicine that relieves pain; soothing", "RA"], ["propitiate", "Attempt to reconcile with or satisfy an angry person", "RA"], ["slake", "Satisfy, esp. thirst; quench, cool", "RA"], ["idyllic", "Presenting a positive, peaceful view of rural life", "RA"], ["felicitous", "Admirably appropriate; pleasant, fortunate", "RA"], ["equanimity", "Composure, evenness of mind, esp. under stress", "RA"], ["bonhomie", "Friendliness, open and simple good heartedness", "RA"], ["palliate", "Make less serious or severe; relieve symptoms", "RA"]]}, {"name": "Noble & Virtuous", "meaning": "Words describing moral excellence, generosity, honor, praise, and high ideals", "color": "#fcd34d", "words": [["magnanimous", "High-minded, noble; generous in forgiving", "Y"], ["principled", "Having high moral standards", "Y"], ["pious", "Devout, religiously reverent", "Y"], ["fidelity", "Faithfulness, loyalty", "Y"], ["propriety", "Conforming to good manners", "Y"], ["sublime", "Lofty, inspiring reverence or awe", "Y"], ["paragon", "Model of excellence", "Y"], ["ingenuous", "Genuine, sincere; naive", "Y"], ["liberal", "Tolerant, open-minded; generous", "Y"], ["deference", "Respectful submission", "Y"], ["probity", "Honesty, integrity", "R"], ["veracity", "Truthfulness, accuracy", "R"], ["estimable", "Worthy of esteem, admirable", "R"], ["sacrosanct", "Sacred, inviolable", "R"], ["munificent", "Generous, giving liberally", "RA"], ["largess", "Generosity; giving of money or gifts", "RA"], ["beneficent", "Doing good; contributing to others' benefit", "RA"], ["august", "Venerable, majestic, inspiring awe", "RA"], ["edify", "Uplift, enlighten, improve morally", "RA"], ["propitious", "Favorable, giving good signs for the future", "RA"], ["approbation", "Praise or approval, esp. formal", "RA"], ["panegyric", "Formal or lofty expression of praise", "RA"], ["encomium", "Warm, glowing praise", "RA"], ["lionize", "Treat like a celebrity", "RA"]]}, {"name": "Power & Society", "meaning": "Words describing authority, social groups, leadership, nationalism, customs, and governance", "color": "#e879f9", "words": [["solidarity", "Fellowship in interests among a group", "Y"], ["gregarious", "Sociable, pertaining to a group", "Y"], ["phalanx", "Formation of soldiers; close group", "Y"], ["ranks", "Personnel; group of people together", "Y"], ["hegemony", "Domination, authority over others", "Y"], ["plutocracy", "Rule by the wealthy", "Y"], ["yoke", "Burden that oppresses; to unite or burden", "Y"], ["cosmopolitan", "Belonging to the entire world; free from local prejudices", "Y"], ["potentate", "Ruler, person of great power", "R"], ["levy", "Collect tax; wage war; enlist troops", "R"], ["chauvinism", "Fanatical patriotism; biased devotion", "R"], ["mores", "Customs, manners, or morals of a group", "R"], ["demagogue", "Leader who gains power by arousing prejudices", "RA"], ["jingoism", "Excessive patriotism and aggressive foreign policy", "RA"], ["puissance", "Power, might", "RA"], ["vanguard", "Leaders at the front; forefront of a trend", "RA"], ["coterie", "Close or exclusive group; clique", "RA"], ["martinet", "Strict disciplinarian", "RA"], ["imperious", "Commanding, domineering; urgent", "RA"], ["doctrinaire", "Impractical ideologue; fanatical about one's ideas", "RA"], ["interregnum", "Time between two reigns; break in a series", "RA"], ["convoke", "Call together, as to a meeting", "RA"], ["accede", "Agree, give consent; assume power", "RA"]]}, {"name": "Sad, Tired & Listless", "meaning": "Words describing sorrow, low spirits, exhaustion, lethargy, mourning, and misfortune", "color": "#818cf8", "words": [["morose", "Gloomy, sullen", "Y"], ["lachrymose", "Tearful, mournful", "Y"], ["listless", "Spiritless, lacking interest or energy", "Y"], ["hapless", "Unlucky, unfortunate", "Y"], ["mired", "Stuck, entangled; in a predicament", "Y"], ["languid", "Drooping from exhaustion, sluggish; lacking in spirit", "R"], ["lassitude", "Tiredness, weariness; lazy indifference", "R"], ["torpor", "Sluggishness, lethargy, or inactivity", "R"], ["soporific", "Causing sleep; sleepy, drowsy", "R"], ["flag", "Get tired, lose enthusiasm; droop", "R"], ["lugubrious", "Mournful, gloomy (sometimes exaggerated)", "RA"], ["wan", "Unnaturally pale; weak, lacking forcefulness", "RA"], ["pallid", "Abnormally pale; lacking color or vitality", "RA"], ["insipid", "Dull, stale, lacking taste or interest", "RA"], ["fallow", "Left unplanted; not in use", "RA"], ["inert", "Inactive, having little power to move", "RA"], ["harrow", "Painfully disturb or distress", "RA"], ["elegy", "Song or prose of sorrow, esp. for the deceased", "RA"], ["dirge", "A funeral or mourning song or poem", "RA"], ["knell", "Sound of a bell for death; signal of ending", "RA"], ["maudlin", "Excessively sentimental in a foolish way", "RA"], ["rue", "Regret, remorse; to feel regret", "RA"]]}, {"name": "Showy & Extravagant", "meaning": "Words describing excessive display, ornateness, pomposity, and overblown style", "color": "#fbbf24", "words": [["ostentatious", "Pretentious, boastful, showy", "Y"], ["bombastic", "Far too showy or dramatic; pretentious", "Y"], ["rococo", "Very elaborate and ornate", "Y"], ["prodigal", "Wasteful, extravagant; lavish", "Y"], ["lavish", "Abundant, marked by luxury", "Y"], ["strut", "Walking proudly; a structural brace", "Y"], ["aggrandize", "Make greater; exaggerate", "Y"], ["profligate", "Completely immoral, or extremely wasteful", "R"], ["libertine", "Morally or sexually unrestrained person", "R"], ["grandstand", "Perform showily to impress onlookers", "RA"], ["meretricious", "Attractive in a vulgar or flashy way; deceptive", "RA"], ["florid", "Reddish or rosy; flowery, showy, excessively fancy", "RA"], ["tawdry", "Gaudy, cheap or cheap-looking", "RA"], ["grandiloquent", "Lofty speech to the point of being pompous, bombastic", "RA"], ["orotund", "Full, rich (of voice); pompous, bombastic", "RA"], ["turgid", "Swollen, inflated; overblown, pompous speech", "RA"], ["overwrought", "Overly nervous; too ornate, overdone", "RA"], ["cloying", "Disgustingly or distastefully sweet", "RA"], ["panache", "Flair, style, swagger; confident energetic style", "RA"], ["palatial", "Suitable for a palace, magnificent", "RA"]]}, {"name": "Wise & Discerning", "meaning": "Words describing good judgment, foresight, expertise, insight, and mental sharpness", "color": "#2dd4bf", "words": [["prudent", "Wise in practical matters", "Y"], ["politic", "Shrewd, pragmatic; tactful", "Y"], ["discerning", "Having good judgment; able to distinguish", "Y"], ["discriminating", "Judicious, having good judgment", "Y"], ["acumen", "Keen, quick, accurate judgment", "Y"], ["savant", "Learned person, scholar", "Y"], ["conversant", "Knowledgeable about or proficient with", "Y"], ["keen", "Sharp; very perceptive; intense", "Y"], ["finesse", "Extreme delicacy, subtlety, or diplomacy", "Y"], ["judicious", "Using good judgment; wise, sensible", "R"], ["surmise", "Guess, infer, opine", "R"], ["construe", "Interpret or translate", "R"], ["divine", "Perceive by insight; discover through supernatural means", "R"], ["perspicacious", "Having penetrating insight or good discernment", "RA"], ["prescient", "Having foreknowledge or foresight", "RA"], ["circumspect", "Cautious, prudent; careful to consider all circumstances", "RA"], ["winnow", "Sift, analyze critically, separate useful from worthless", "RA"], ["ruminate", "Turn over in the mind; reflect on", "RA"], ["augury", "Telling the future through supernatural means", "RA"], ["synoptic", "Relating to a synopsis or summary; giving a general view", "RA"]]}, {"name": "Prevent, Limit & Replace", "meaning": "Words describing blocking, restricting, supplanting, cutting, postponing, or eliminating", "color": "#38bdf8", "words": [["supersede", "Replace, take the position of", "Y"], ["preempt", "Prevent; take the place of, supplant", "Y"], ["forestall", "Delay, hinder, prevent beforehand", "Y"], ["eclipse", "Obscure, darken, make less important", "Y"], ["impede", "Hold back, obstruct", "Y"], ["circumscribe", "Strictly limit a range of activity", "Y"], ["delimit", "Fix or define the limits of", "Y"], ["stem", "Stop, hold back the flow of", "Y"], ["table", "Postpone discussion indefinitely", "Y"], ["obviate", "Prevent, eliminate, make unnecessary", "R"], ["stymie", "Block, hinder, thwart", "R"], ["proscribe", "Prohibit, outlaw; denounce", "R"], ["eschew", "Shun, avoid, abstain from", "R"], ["supplant", "Take the place of, displace", "RA"], ["attenuate", "Weaken or thin out", "RA"], ["pare", "Peel, trim, remove outer parts", "RA"], ["expurgate", "Censor; remove objectionable parts", "RA"], ["abscission", "Cutting off; sudden severance", "RA"], ["occlude", "Stop up, close, shut in or out", "RA"], ["militate", "Have a great effect, weigh heavily (against)", "RA"]]}, {"name": "Clear & Expressive", "meaning": "Words describing clarity, eloquence, persuasion, declaration, and obvious truths", "color": "#34d399", "words": [["lucid", "Clear, easy to understand; rational", "Y"], ["manifest", "Obvious, apparent; to show or prove", "Y"], ["eloquent", "Forceful, fluid speech; emotionally moving", "Y"], ["denote", "Stand as a symbol for; indicate", "Y"], ["euphony", "Pleasing or sweet sound", "Y"], ["opine", "Express an opinion", "Y"], ["inform", "Inspire, animate; give characteristic quality", "Y"], ["cogent", "Very convincing, logical", "R"], ["aver", "Declare or affirm with confidence", "R"], ["patent", "Obvious, apparent, plain to see", "R"], ["exponent", "Person who expounds or explains; advocate", "R"], ["pellucid", "Transparent, translucent; clear, easy to understand", "RA"], ["salient", "Obvious, standing out; projecting", "RA"], ["verisimilar", "The appearance of being true or real", "RA"], ["trenchant", "Forceful, effective, keen, sharp", "RA"], ["declaim", "Speak in an impassioned or theatrical manner", "RA"], ["stentorian", "Very loud and powerful (of a human voice)", "RA"], ["dictum", "Formal pronouncement; saying or proverb", "RA"], ["limpid", "Clear, transparent; completely calm", "RA"]]}, {"name": "Diverse & Unique", "meaning": "Words describing mixture, variety, eclecticism, collections, environments, and individuality", "color": "#67e8f9", "words": [["idiosyncrasy", "Peculiar characteristic; quirk", "Y"], ["eclectic", "Selecting from many diverse sources", "Y"], ["hodgepodge", "Mixture of different things, jumble", "Y"], ["incorporate", "Include, combine, unite", "Y"], ["paradigm", "Model or pattern; worldview", "Y"], ["counterpoint", "Contrasting item; interplay in art", "Y"], ["interplay", "Interaction, reciprocal influence", "Y"], ["repertorial", "Pertaining to a repertoire", "Y"], ["aberrant", "Abnormal, deviant", "R"], ["variegated", "Varied in color; diverse", "RA"], ["pastiche", "Mix of incongruous parts; imitative artwork", "RA"], ["multifarious", "Diverse, having a lot of variety", "RA"], ["panoply", "Splendid, impressive display or array", "RA"], ["welter", "Confused mass or pile; jumble; turmoil", "RA"], ["compendium", "Concise but complete summary; a list or collection", "RA"], ["milieu", "Environment, atmosphere; setting", "RA"], ["catholic", "Universal, broad-minded", "RA"], ["sobriquet", "A nickname", "RA"], ["bevy", "Group of birds or animals; close-knit group", "RA"]]}, {"name": "Tactless & Narrow-minded", "meaning": "Words describing rudeness, social awkwardness, arrogance, meddling, and cultural deficiency", "color": "#fdba74", "words": [["gauche", "Tactless, lacking social grace, crude", "Y"], ["presumptuous", "Too bold, going beyond what is proper", "Y"], ["patronizing", "Condescending, treating as inferior", "Y"], ["pedant", "Shows off book learning excessively", "Y"], ["illiberality", "Narrow-mindedness, bigotry", "Y"], ["insular", "Narrow-minded, provincial", "Y"], ["incongruous", "Out of place, inappropriate", "Y"], ["boor", "Rude, ill-mannered person", "R"], ["officious", "Excessively meddlesome, pushy", "R"], ["unseemly", "Improper, inappropriate", "R"], ["gawky", "Physically awkward", "R"], ["offhand", "Casual; done without preparation; brusque", "R"], ["fatuous", "Foolish, silly, esp. in a smug way", "RA"], ["puerile", "Juvenile, immature", "RA"], ["solecism", "Nonstandard grammar; mistake; breach of etiquette", "RA"], ["philistine", "Person deficient in or hostile to culture", "RA"], ["ingrate", "Ungrateful person", "RA"], ["dilettante", "Person who takes up an activity only superficially", "RA"]]}, {"name": "Physical & Bodily", "meaning": "Words describing the body, physical appearance, movement, smells, and medical topics", "color": "#a5b4fc", "words": [["somatic", "Of the body", "Y"], ["viscid", "Thick, adhesive, sticky", "Y"], ["lumber", "Walk in a heavy, clumsy way", "Y"], ["desiccate", "Thoroughly dried up", "R"], ["ponderous", "Heavy, bulky, unwieldy; dull", "R"], ["torrid", "Very hot, parching; passionate", "R"], ["emaciate", "Make abnormally thin; waste away", "RA"], ["wizened", "Withered, shriveled", "RA"], ["distend", "Swell, expand, stretch, bloat", "RA"], ["lissome", "Flexible, supple, agile", "RA"], ["clamber", "Climb awkwardly or with difficulty", "RA"], ["diaphanous", "Very sheer, fine, translucent", "RA"], ["noisome", "Extremely offensive smell; disgusting", "RA"], ["fetid", "Having an offensive smell", "RA"], ["analgesia", "Pain relief, inability to feel pain", "RA"], ["aseptic", "Free from germs", "RA"], ["rend", "Tear violently", "RA"], ["brandish", "Shake or wave, as a weapon", "RA"]]}, {"name": "Changeable & Indecisive", "meaning": "Words describing fickleness, unpredictability, wavering, impulsiveness, and restlessness", "color": "#c084fc", "words": [["irresolute", "Wavering, not firm in decisions", "Y"], ["oscillate", "Swing back and forth; waver", "Y"], ["quandary", "Uncertainty about what to do; dilemma", "Y"], ["capricious", "Acting on impulse, erratic", "Y"], ["mercurial", "Quickly changing moods, fickle", "Y"], ["whimsical", "Marked by whims; erratic", "Y"], ["inconsistency", "Fickleness, unreliability", "Y"], ["vacillate", "Waver in one's mind, be indecisive", "R"], ["fanciful", "Whimsical, capricious; imaginary", "R"], ["restive", "Restless; uneasy under control", "R"], ["skittish", "Shy, fickle, prone to sudden action from nervousness", "RA"], ["dither", "Act indecisively; state of fear or excitement", "RA"], ["impetuous", "Passionately impulsive; forceful, violent", "RA"], ["desultory", "Lacking consistency, disconnected, sporadic", "RA"], ["vicissitude", "Changes or variations over time", "RA"], ["dilatory", "Slow, late; procrastinating", "RA"], ["quixotic", "Extremely impractical but romantic or idealistic", "RA"]]}, {"name": "Cause, Spread & Grow", "meaning": "Words describing provocation, dissemination, fertility, saturation, and expansion", "color": "#fca5a5", "words": [["precipitate", "Cause to happen suddenly", "Y"], ["engender", "Produce, give rise to", "Y"], ["goad", "Spur on, stimulate, encourage", "Y"], ["disseminate", "Scatter, spread, broadcast", "Y"], ["inundate", "Flood, overwhelm", "Y"], ["accretion", "Gradual increase; addition", "Y"], ["dilate", "Become wider; speak at length", "Y"], ["foment", "Incite, instigate, stir up", "R"], ["burgeon", "Grow or flourish rapidly", "R"], ["fecund", "Fruitful, fertile; capable of abundant production", "RA"], ["recrudescent", "Revival, breaking out into renewed activity", "RA"], ["gestation", "Pregnancy; development of an idea or plan", "RA"], ["imbue", "Permeate or saturate; influence throughout", "RA"], ["inoculate", "Teach persistently, implant an idea", "RA"], ["steeped", "Immersed in, saturated with", "RA"], ["whet", "Stimulate, make keen or eager", "RA"], ["peddle", "Travel around selling; disseminate", "RA"]]}, {"name": "Hidden & Obscure", "meaning": "Words describing secrecy, complexity, mystery, concealment, and things hard to understand", "color": "#a78bfa", "words": [["opaque", "Not transparent; dull, unclear", "Y"], ["arcane", "Known by only a few; obscure, secret", "Y"], ["occult", "Supernatural; mysterious, hidden", "Y"], ["convoluted", "Twisted; very complicated", "Y"], ["indeterminate", "Not fixed; indefinite; vague", "Y"], ["oblique", "Indirect, misleading, or evasive", "Y"], ["implication", "Act of implying; incriminating connection", "Y"], ["esoteric", "Understood by only a few; secret", "R"], ["conundrum", "A riddle; any mystery", "R"], ["recondite", "Not easily understood; dealing with obscure topics", "RA"], ["hermetic", "Airtight, sealed, isolated; reclusive; pertaining to alchemy", "RA"], ["latent", "Potential; existing but not visible or active", "RA"], ["adumbrate", "Give a rough outline of; foreshadow; obscure", "RA"], ["furtive", "Done secretly; stealthy, sly, shifty", "RA"], ["penumbra", "Outer part of a shadow; fringe, periphery", "RA"], ["tortuous", "Twisting, winding, complex; devious", "RA"]]}, {"name": "Unemotional & Reserved", "meaning": "Words describing detachment, stoicism, austerity, composure, and restraint", "color": "#94a3b8", "words": [["phlegmatic", "Apathetic, sluggish, not easily moved", "Y"], ["impassive", "Not showing feeling or emotion", "Y"], ["dispassionate", "Unbiased, calm, unemotional", "Y"], ["glacial", "Cold, icy, slow, unsympathetic", "Y"], ["reticent", "Not talking much; reserved", "Y"], ["tacit", "Understood without being stated", "Y"], ["spartan", "Disciplined, stern; frugal, austere", "Y"], ["insensible", "Incapable of feeling; unconscious", "Y"], ["taciturn", "Not talking much, reserved, silent", "R"], ["stolid", "Unemotional, not easily moved", "R"], ["disinterested", "Unbiased, impartial", "R"], ["ascetic", "Abstinent, austere lifestyle", "R"], ["diffident", "Lacking confidence, shy", "RA"], ["impervious", "Impenetrable; not emotionally disturbed", "RA"], ["inure", "Toughen up; accustom to hardship", "RA"], ["brook", "Suffer or tolerate", "RA"]]}, {"name": "Playful & Light-hearted", "meaning": "Words describing humor, joy, merriment, enthusiasm, and witty storytelling", "color": "#f0abfc", "words": [["jocular", "Joking, playful", "Y"], ["sportive", "Playful, merry", "Y"], ["epicure", "Person with refined tastes in food and wine", "Y"], ["savor", "Appreciate fully; taste with pleasure", "Y"], ["satiate", "Fully satisfy; go beyond to excess", "Y"], ["facetious", "Joking, esp. inappropriately", "R"], ["levity", "Lightness of mind; lack of seriousness", "R"], ["mirth", "Jollity, merriment; laughter", "RA"], ["blithe", "Joyous, merry; excessively carefree", "RA"], ["droll", "Funny in an odd way", "RA"], ["ebullient", "Very enthusiastic, lively, excited", "RA"], ["gambol", "Frolic, skip or leap playfully", "RA"], ["ribald", "Humorously indecent or obscene", "RA"], ["raconteur", "Witty storyteller", "RA"], ["vim", "Pep, enthusiasm, vitality", "RA"], ["repast", "A meal; to eat or feast", "RA"]]}, {"name": "Prominent & Lasting", "meaning": "Words describing eminence, importance, endurance, and defining characteristics", "color": "#a3e635", "words": [["prodigious", "Extraordinarily large, impressive", "Y"], ["zenith", "High point, culmination", "Y"], ["primacy", "State of being first or most important", "Y"], ["hallmark", "Mark of quality; distinguishing characteristic", "Y"], ["eminent", "Prominent, distinguished", "Y"], ["standing", "Status, rank, reputation", "Y"], ["stark", "Complete, utter; harsh, severe", "Y"], ["perennial", "Lasting through the years; recurring", "Y"], ["canonical", "Authorized, recognized", "Y"], ["endemic", "Native, confined to a particular place", "Y"], ["appreciable", "Enough to be perceived, considerable", "Y"], ["acme", "Summit, peak, highest point", "R"], ["outstrip", "Surpass, exceed", "R"], ["preternatural", "Exceptional, supernatural", "RA"], ["nadir", "Lowest point", "RA"]]}, {"name": "Temporary & Insignificant", "meaning": "Words describing things fleeting, trivial, tiny, or barely existing", "color": "#d4d4d8", "words": [["transitory", "Temporary, short-lived", "Y"], ["ephemeral", "Lasting only a short time, fleeting", "Y"], ["nominal", "Trivial, insignificant; in name only", "Y"], ["trifling", "Trivial, not very important", "Y"], ["inconsequential", "Insignificant, unimportant", "Y"], ["slight", "Small, not important; snub", "Y"], ["peripheral", "Not of primary importance; fringe", "Y"], ["fringe", "On the margin, periphery", "Y"], ["tenuous", "Flimsy, having little substance", "Y"], ["dissolution", "Dissolving; disintegration", "Y"], ["peccadillo", "Small sin or fault", "R"], ["scintilla", "A tiny bit or trace", "RA"], ["modicum", "A little bit or limited quantity", "RA"], ["vestige", "Trace or sign of something that once existed", "RA"]]}, {"name": "Give, Assign & Correct", "meaning": "Words describing attribution, bestowing, clearing, improving, and setting right", "color": "#86efac", "words": [["ascribe", "Assign or credit to a cause or source", "Y"], ["confer", "Consult; bestow or give", "Y"], ["render", "Give, submit; translate; cause to become", "Y"], ["investiture", "Formally giving someone a right or title", "Y"], ["redress", "Setting right; compensation; remedy", "Y"], ["exculpate", "Clear from guilt or blame", "R"], ["disabuse", "Free someone from a misconception", "R"], ["requite", "Reciprocate, repay, or revenge", "R"], ["anoint", "Rub oil on; make sacred by ceremony", "R"], ["countenance", "Approve or tolerate; facial expression", "R"], ["ameliorate", "Improve, make better or more tolerable", "RA"], ["exonerate", "Clear from blame or obligation", "RA"], ["impute", "Credit, attribute, lay blame (sometimes falsely)", "RA"], ["apprise", "Inform, give notice to", "RA"]]}, {"name": "Tendency & Compliance", "meaning": "Words describing inclination, servility, submissive eagerness, flattery, and pampering", "color": "#fde68a", "words": [["penchant", "Liking or inclination", "Y"], ["predisposed", "Having an inclination beforehand", "Y"], ["tractable", "Easily controlled, docile", "Y"], ["obsequious", "Servile, fawning", "R"], ["sycophant", "Servile flatterer, toady", "R"], ["solicitous", "Concerned, eager; very careful", "R"], ["supplicate", "Pray humbly; beg", "R"], ["toady", "Flatterer for self-serving reasons", "RA"], ["fawn", "Try to win favor through flattery", "RA"], ["ingratiate", "Make an effort to gain favor with", "RA"], ["complaisant", "Eager to please; cheerfully complying", "RA"], ["grovel", "Crawl face-down; degrade oneself", "RA"], ["cosset", "Treat as a pet, pamper", "RA"], ["bent", "Personal inclination or tendency", "RA"]]}, {"name": "Effective & Reliable", "meaning": "Words describing practical utility, competence, relevance, appropriateness, and certainty", "color": "#5eead4", "words": [["expedient", "Suitable, effective (often at expense of ethics)", "Y"], ["efficacy", "Ability to produce the intended effect", "Y"], ["dispatch", "Deal with speedily; promptness", "Y"], ["qualified", "Modified, conditional", "Y"], ["warranted", "Justified, authorized", "Y"], ["infallible", "Incapable of error; certain", "Y"], ["germane", "Relevant, appropriate, on-topic", "R"], ["inasmuch", "Considering that; in like manner", "R"], ["apposite", "Highly appropriate, suitable, relevant", "RA"], ["dovetail", "Join or fit together", "RA"], ["attuned", "In harmony, in sympathetic relationship", "RA"], ["redound", "Have a good or bad effect, esp. as a result of others", "RA"], ["abreast", "Side-by-side; keeping up with, staying aware of", "RA"]]}, {"name": "Leave, Reject & Discard", "meaning": "Words describing departure, renunciation, denial, removal, and social exclusion", "color": "#fda4af", "words": [["abscond", "Depart suddenly and secretively", "Y"], ["jettison", "Discard, cast off", "Y"], ["divest", "Strip of rank; sell off holdings", "Y"], ["alienate", "Cause to become unfriendly or distant", "Y"], ["extraneous", "Irrelevant; foreign, not belonging", "Y"], ["abjure", "Renounce, repudiate formally", "R"], ["repudiate", "Reject, cast off, deny authority", "R"], ["gainsay", "Declare false, deny; oppose", "R"], ["pariah", "Social outcast", "R"], ["recant", "Withdraw, retract something previously said", "RA"], ["doff", "Take off (clothes); put aside", "RA"], ["molt", "Shed or cast off (skin, feathers)", "RA"], ["demur", "Show reluctance or object", "RA"]]}, {"name": "Rebellious & Defiant", "meaning": "Words describing nonconformists, disobedience, resistance to authority, and insurrection", "color": "#fb7185", "words": [["iconoclast", "Attacker of cherished beliefs", "Y"], ["maverick", "Rebel, individualist, dissenter", "Y"], ["apostle", "Pioneer of a reform movement", "Y"], ["apostate", "Person who deserts a party, cause, or religion", "RA"], ["contumacious", "Rebellious; stubbornly disobedient", "RA"], ["recalcitrant", "Not obedient, resisting authority", "RA"], ["refractory", "Stubbornly disobedient, hard to manage", "RA"], ["flout", "Treat with disdain or contempt (usually of rules)", "RA"], ["sedition", "Inciting rebellion against a government", "RA"]]}, {"name": "Investigate & Resolve", "meaning": "Words describing discovery, probing, summarizing, listening, and determination", "color": "#c4b5fd", "words": [["ascertain", "Find out with certainty", "Y"], ["sound", "Measure depth; probe or investigate", "Y"], ["distill", "Purify; extract essential elements", "Y"], ["resolve", "Find a solution; firmly decide", "Y"], ["resolution", "Firmly determined; formal judgment", "Y"], ["hearken", "Listen, pay attention to", "R"], ["inquest", "Legal or judicial inquiry", "RA"], ["recapitulate", "Summarize, repeat concisely", "RA"], ["pr\u00e9cis", "Concise summary, abstract", "RA"]]}, {"name": "Brave & Spirited", "meaning": "Words describing courage, boldness, optimism, combativeness, and audacious energy", "color": "#4ade80", "words": [["intrepid", "Fearless, brave", "R"], ["hardy", "Bold, capable of withstanding hardship", "R"], ["sanguine", "Cheerfully optimistic, hopeful", "R"], ["alacrity", "Cheerful speedy willingness", "R"], ["pugnacious", "Inclined to fight, combative", "R"], ["plucky", "Brave, spirited", "RA"], ["effrontery", "Shameless boldness", "RA"], ["truculent", "Fierce, cruel, savage; belligerent", "RA"], ["pugilism", "Boxing, fighting with fists", "RA"]]}, {"name": "Diligent & Demanding", "meaning": "Words describing hard work, persistence, rigor, urgency, and high standards", "color": "#f472b6", "words": [["assiduous", "Persevering, diligent, constant", "Y"], ["indefatigable", "Untiring", "Y"], ["arduous", "Hard, difficult, strenuous", "Y"], ["exacting", "Very severe in demands; requiring precise attention", "Y"], ["fastidious", "Excessively particular; painstaking", "Y"], ["sedulous", "Persevering, persistent, diligent", "R"], ["exigent", "Requiring immediate attention; demanding", "RA"], ["perfunctory", "Done superficially, without care; merely routine", "RA"]]}, {"name": "Cautious, Fearful & Wary", "meaning": "Words describing suspicion, cowardice, fear, anxiety, and timidity", "color": "#bef264", "words": [["leery", "Suspicious or wary", "Y"], ["hedge", "Avoid commitment by leaving provisions for withdrawal", "Y"], ["hand-wringing", "Expression of nervousness; debate over what to do", "Y"], ["timorous", "Fearful, timid", "R"], ["craven", "Very cowardly, lacking courage", "R"], ["disquieting", "Disturbing, causing anxiety", "R"], ["pusillanimous", "Cowardly, timid", "RA"], ["discomfiting", "Disconcerting, confusing, frustrating", "RA"]]}, {"name": "Financial & Practical", "meaning": "Words related to money, budgeting, obligations, and prudent management", "color": "#d9f99d", "words": [["amortize", "Gradually pay off a debt", "Y"], ["net", "Remaining after expenses; bring in as profit", "Y"], ["default", "Failure to fulfill a financial obligation", "Y"], ["stint", "Period of time; to be frugal", "Y"], ["husband", "Manage prudently and economically; conserve", "RA"], ["usury", "Charging excessive interest on a loan", "RA"], ["graft", "Acquiring money through illegal means, esp. abusing power", "RA"], ["sinecure", "Job that pays while requiring little or no work", "RA"]]}, {"name": "Stubborn & Relentless", "meaning": "Words describing obstinacy, refusal, deadlock, and unyielding persistence", "color": "#fca5a5", "words": [["obdurate", "Stubborn, hardhearted", "Y"], ["balk", "Refuse to proceed; hesitate", "Y"], ["intractable", "Difficult to control; stubborn", "R"], ["intransigent", "Refusing to compromise, inflexible", "RA"], ["inexorable", "Relentless, unyielding; not moved by pleading", "RA"], ["implacable", "Relentless; not able to be appeased", "RA"], ["ossify", "Become inflexible in attitudes; harden", "RA"], ["impasse", "Deadlock; position from which there is no escape", "RA"]]}, {"name": "Greed & Poverty", "meaning": "Words describing avarice, extreme poverty, begging, theft, and financial ruin", "color": "#f59e0b", "words": [["avarice", "Insatiable greed; miserly hoarding of wealth", "RA"], ["cupidity", "Greed, great or excessive desire", "RA"], ["indigence", "Extreme poverty", "RA"], ["penury", "Extreme poverty or scarcity", "RA"], ["impecunious", "Poor, without money", "RA"], ["mendicant", "Beggar; religious follower who lives by begging", "RA"], ["coffer", "Chest for storing valuables; strongbox", "RA"], ["larceny", "Theft", "RA"]]}, {"name": "Beginning & Developing", "meaning": "Words describing things just starting, in early stages, or progressing gradually", "color": "#a3e635", "words": [["inchoate", "Just begun, undeveloped", "R"], ["incipient", "Just beginning, in early stage", "R"], ["nascent", "Coming into existence, still developing", "R"], ["gradation", "Progression in stages", "R"], ["neophyte", "Beginner; novice; newly converted person", "RA"], ["tyro", "Beginner", "RA"], ["fledgling", "Young bird; inexperienced person; new", "RA"]]}, {"name": "Abundant & Plentiful", "meaning": "Words describing large quantities, overflowing supply, excess, or widespread presence", "color": "#facc15", "words": [["profuse", "Abundant, extravagant, given freely", "R"], ["replete", "Supplied in abundance, filled", "R"], ["rife", "Happening frequently, abundant", "R"], ["slew", "A large number or quantity", "R"], ["spate", "Sudden outpouring or rush; flood", "R"], ["surfeit", "Excess, overindulgence", "R"], ["inordinate", "Excessive, not within proper limits", "RA"]]}, {"name": "Traveling & Terrain", "meaning": "Words describing journeys, wandering, physical places, and geographic features", "color": "#86efac", "words": [["peripatetic", "Journeying from place to place, esp. on foot", "RA"], ["peregrinate", "Travel from place to place, esp. on foot", "RA"], ["itinerant", "Traveling from place to place as part of a job", "RA"], ["egress", "The action of exiting; an exit", "RA"], ["ford", "Shallow crossing in a river; to cross there", "RA"], ["aerie", "Dwelling on a high place; eagle's nest on a cliff", "RA"], ["declivity", "Downward slope", "RA"]]}, {"name": "Beauty & Appearance", "meaning": "Words describing physical beauty, charm, radiance, style, and elegant form", "color": "#f9a8d4", "words": [["pulchritude", "Physical beauty", "RA"], ["winsome", "Charming, engaging, esp. sweetly innocent", "RA"], ["refulgent", "Shining, radiant", "RA"], ["modish", "Stylish, contemporary", "RA"], ["burnish", "Polish, make smooth and lustrous", "RA"], ["incarnadine", "Blood red or flesh-colored", "RA"]]}, {"name": "Ordinary & Dull", "meaning": "Words describing dullness, commonplaceness, clich\u00e9, and lack of originality", "color": "#d4d4d4", "words": [["pedestrian", "Ordinary, dull, commonplace", "Y"], ["trite", "Lacking freshness; clich\u00e9", "Y"], ["quotidian", "Daily, everyday, ordinary", "R"], ["prosaic", "Dull, ordinary", "R"], ["platitude", "Shallow, overused statement; clich\u00e9", "RA"]]}, {"name": "Chance & Timing", "meaning": "Words describing luck, providence, critical moments, and context-dependence", "color": "#bfdbfe", "words": [["fortuitous", "Happening by chance; lucky", "Y"], ["juncture", "Critical point in time", "Y"], ["skirt", "Border, go around", "Y"], ["unsparing", "Unmerciful; or generous (context-dependent)", "Y"], ["providential", "Lucky, fortunate, or relating to divine care", "RA"]]}, {"name": "Talkative & Wordy", "meaning": "Words describing excessive speech, superficial fluency, prattle, and rambling", "color": "#fda4af", "words": [["garrulous", "Talkative, wordy, rambling", "R"], ["glib", "Fluent in a way suggesting insincerity", "R"], ["voluble", "Easily fluent in speech", "RA"], ["prolix", "Excessively long and wordy", "RA"], ["prattle", "Talk in an idle, foolish way; chatter", "RA"]]}, {"name": "Old, Seasonal & Natural", "meaning": "Words describing age, seasons, nature, greenery, and the passage of time", "color": "#86efac", "words": [["hoary", "Very old, gray or white as from age", "RA"], ["erstwhile", "Previous; formerly", "RA"], ["verdant", "Green with vegetation; young and inexperienced", "RA"], ["vernal", "Relating to spring; fresh", "RA"], ["rarefied", "Lofty, elevated; exclusive; thin (as high-altitude air)", "RA"]]}, {"name": "Words & Language", "meaning": "Words about vocabulary, names, representation, and linguistic phenomena", "color": "#67e8f9", "words": [["neologism", "New word or phrase", "RA"], ["effigy", "Representation or image of a person, esp. a crude one", "RA"], ["tome", "Large or scholarly book", "RA"], ["distaff", "Female; relating to the maternal side; women's work", "RA"], ["missive", "Letter, written message", "RA"]]}, {"name": "Pleasure & Indulgence", "meaning": "Words describing luxury-seeking, overindulgence, and hedonistic pleasure", "color": "#f0abfc", "words": [["sybarite", "Person devoted to pleasure and luxury", "RA"], ["lurid", "Gruesome or excessively vivid; sensational", "RA"], ["frenetic", "Wildly excited, frantic, agitated", "RA"], ["maelstrom", "Chaotic, turbulent situation; violent whirlpool", "RA"], ["squalid", "Disgusting, filthy, foul; extremely neglected", "RA"]]}, {"name": "Discussion & Rhetoric", "meaning": "Words describing debate, formal speech, replies, and persuasive discourse", "color": "#c4b5fd", "words": [["polemic", "Controversial argument attacking a specific idea", "RA"], ["rejoinder", "Response or reply, esp. a witty comeback", "RA"], ["extemporaneous", "Done without preparation; improvised", "RA"], ["parley", "Discussion or negotiation, esp. between enemies", "RA"]]}, {"name": "Careless & Lax", "meaning": "Words describing negligence, lack of attention, and being insufficiently careful", "color": "#fed7aa", "words": [["lax", "Not strict; careless, loose", "Y"], ["slack", "Negligent, lazy, weak", "Y"], ["inadvertent", "Unintentional; lacking attention", "Y"]]}, {"name": "Scarce & Concise", "meaning": "Words describing brevity, scarcity, and getting to the core essence", "color": "#99f6e4", "words": [["laconic", "Using few words, concise", "R"], ["pith", "Core, essence; significance", "R"], ["paucity", "Scarcity, small in number", "R"]]}, {"name": "Attack & Seize", "meaning": "Words describing aggressive taking, verbal assaults, and violent claims", "color": "#f87171", "words": [["arrogate", "Claim or take presumptuously without right", "RA"], ["impugn", "Attack the truth or integrity of", "RA"], ["hew", "Strike, chop, hack; make or shape with a cutting tool", "RA"]]}, {"name": "Devotion & Imitation", "meaning": "Words describing worship, copying, and following models", "color": "#7dd3fc", "words": [["idolatry", "Idol worship; excessive devotion", "Y"], ["emulate", "Copy in an attempt to equal or surpass", "Y"]]}, {"name": "Harmless & Genuine", "meaning": "Words describing innocuousness, natural simplicity, and lack of deceit", "color": "#bbf7d0", "words": [["innocuous", "Harmless, inoffensive", "R"], ["artless", "Free of deceit, natural, genuine", "R"]]}, {"name": "Sorrow & Remorse", "meaning": "Words describing guilt, regret, and penitence", "color": "#c4b5fd", "words": [["contrite", "Remorseful, feeling sorry for one's offenses", "RA"], ["inter", "Bury (a dead body) or place in a tomb", "RA"]]}, {"name": "Freedom & Pause", "meaning": "Words describing latitude, suspension, and periods without authority", "color": "#bfdbfe", "words": [["latitude", "Freedom from constraints on action or speech", "RA"], ["abeyance", "Temporary suspension, inactivity", "RA"]]}];
+
+// ── Layout ──
+const world = document.getElementById("world");
+const GOLDEN = 2.39996322973;
+let bubbles = [];
+
+function bubbleSize(word) {
+  const len = word.length;
+  if (len <= 4) return 62;
+  if (len <= 6) return 68;
+  if (len <= 8) return 74;
+  if (len <= 10) return 80;
+  return 88;
+}
+
+function fontSize(word) {
+  const len = word.length;
+  if (len <= 4) return 13;
+  if (len <= 7) return 12;
+  if (len <= 10) return 11;
+  return 10;
+}
+
+function packCircles(words) {
+  const positions = [];
+  for (let i = 0; i < words.length; i++) {
+    const r = bubbleSize(words[i][0]) / 2;
+    if (i === 0) { positions.push({x:0,y:0,r}); continue; }
+    const angle = i * GOLDEN;
+    let dist = r * 1.1;
+    let placed = false;
+    for (let attempt = 0; attempt < 200 && !placed; attempt++) {
+      const x = Math.cos(angle) * dist;
+      const y = Math.sin(angle) * dist;
+      let overlap = false;
+      for (const p of positions) {
+        const dx = x - p.x, dy = y - p.y;
+        if (Math.sqrt(dx*dx+dy*dy) < r + p.r + 4) { overlap = true; break; }
+      }
+      if (!overlap) { positions.push({x,y,r}); placed = true; }
+      else dist += 3;
+    }
+    if (!placed) positions.push({x: Math.cos(angle)*dist, y: Math.sin(angle)*dist, r});
+  }
+  return positions;
+}
+
+// Position clusters in a spiral
+const clusterPositions = [];
+const spiralStep = 320;
+for (let i = 0; i < DATA.length; i++) {
+  const angle = i * GOLDEN;
+  const dist = (i === 0) ? 0 : spiralStep * Math.sqrt(i);
+  clusterPositions.push({ x: Math.cos(angle) * dist, y: Math.sin(angle) * dist });
+}
+
+// Find global bounds
+let minX = Infinity, minY = Infinity, maxX = -Infinity, maxY = -Infinity;
+
+DATA.forEach((cluster, ci) => {
+  const cx = clusterPositions[ci].x;
+  const cy = clusterPositions[ci].y;
+  const positions = packCircles(cluster.words);
+  
+  // Cluster background
+  let cMaxR = 0;
+  positions.forEach(p => { const d = Math.sqrt(p.x*p.x+p.y*p.y)+p.r; if(d>cMaxR) cMaxR=d; });
+  const bgR = cMaxR + 30;
+  
+  const group = document.createElement("div");
+  group.className = "cluster-group";
+  group.style.left = (cx - bgR) + "px";
+  group.style.top = (cy - bgR) + "px";
+  group.style.width = (bgR*2) + "px";
+  group.style.height = (bgR*2) + "px";
+  
+  const bg = document.createElement("div");
+  bg.className = "cluster-bg";
+  bg.style.width = bg.style.height = (bgR*2) + "px";
+  bg.style.background = cluster.color;
+  bg.dataset.ci = ci;
+  bg.addEventListener("click", () => showModal(ci));
+  group.appendChild(bg);
+  
+  const label = document.createElement("div");
+  label.className = "cluster-label";
+  label.textContent = cluster.name;
+  label.style.left = "50%";
+  label.style.top = (bgR*2 + 8) + "px";
+  label.style.transform = "translateX(-50%)";
+  group.appendChild(label);
+  
+  positions.forEach((p, wi) => {
+    const w = cluster.words[wi];
+    const size = bubbleSize(w[0]);
+    const bub = document.createElement("div");
+    bub.className = "word-bubble src-" + w[2];
+    bub.style.width = bub.style.height = size + "px";
+    bub.style.left = (bgR + p.x - size/2) + "px";
+    bub.style.top = (bgR + p.y - size/2) + "px";
+    bub.style.fontSize = fontSize(w[0]) + "px";
+    bub.textContent = w[0];
+    bub.dataset.word = w[0].toLowerCase();
+    bub.dataset.def = w[1];
+    bub.dataset.src = w[2];
+    bub.dataset.ci = ci;
+    bub.addEventListener("mouseenter", showTooltip);
+    bub.addEventListener("mouseleave", hideTooltip);
+    bub.addEventListener("click", e => { e.stopPropagation(); showWordInModal(ci, wi); });
+    group.appendChild(bub);
+    bubbles.push(bub);
+    
+    const gx = cx + p.x, gy = cy + p.y;
+    if(gx - size/2 < minX) minX = gx - size/2;
+    if(gy - size/2 < minY) minY = gy - size/2;
+    if(gx + size/2 > maxX) maxX = gx + size/2;
+    if(gy + size/2 > maxY) maxY = gy + size/2;
+  });
+  
+  world.appendChild(group);
+});
+
+// ── Pan & Zoom ──
+let scale = 1, panX = 0, panY = 0, dragging = false, dragStartX, dragStartY, startPanX, startPanY;
+const W = maxX - minX + 200, H = maxY - minY + 200;
+
+function fitView() {
+  const vw = window.innerWidth, vh = window.innerHeight;
+  scale = Math.min(vw / W, vh / H, 1) * 0.85;
+  panX = (vw - W * scale) / 2 - minX * scale;
+  panY = (vh - H * scale) / 2 - minY * scale;
+  applyTransform();
+}
+
+function applyTransform() {
+  world.style.transform = `translate(${panX}px,${panY}px) scale(${scale})`;
+}
+
+fitView();
+window.addEventListener("resize", fitView);
+
+world.addEventListener("mousedown", e => {
+  if (e.target.classList.contains("word-bubble") || e.target.classList.contains("cluster-bg")) return;
+  dragging = true; dragStartX = e.clientX; dragStartY = e.clientY;
+  startPanX = panX; startPanY = panY; world.style.cursor = "grabbing";
+});
+window.addEventListener("mousemove", e => {
+  if (!dragging) return;
+  panX = startPanX + (e.clientX - dragStartX);
+  panY = startPanY + (e.clientY - dragStartY);
+  applyTransform();
+});
+window.addEventListener("mouseup", () => { dragging = false; world.style.cursor = ""; });
+
+window.addEventListener("wheel", e => {
+  e.preventDefault();
+  const factor = e.deltaY < 0 ? 1.1 : 0.9;
+  const rect = world.getBoundingClientRect();
+  const mx = e.clientX, my = e.clientY;
+  const newScale = Math.max(0.1, Math.min(3, scale * factor));
+  panX = mx - (mx - panX) * (newScale / scale);
+  panY = my - (my - panY) * (newScale / scale);
+  scale = newScale;
+  applyTransform();
+}, {passive: false});
+
+// ── Tooltip ──
+const tooltip = document.getElementById("tooltip");
+function showTooltip(e) {
+  const b = e.target;
+  tooltip.querySelector(".tt-word").textContent = b.dataset.word;
+  tooltip.querySelector(".tt-def").textContent = b.dataset.def;
+  tooltip.style.display = "block";
+  const r = b.getBoundingClientRect();
+  tooltip.style.left = Math.min(r.left, window.innerWidth - 290) + "px";
+  tooltip.style.top = (r.top - tooltip.offsetHeight - 8) + "px";
+  if (parseFloat(tooltip.style.top) < 0) tooltip.style.top = (r.bottom + 8) + "px";
+}
+function hideTooltip() { tooltip.style.display = "none"; }
+
+// ── Modal ──
+const overlay = document.getElementById("modal-overlay");
+const modalTitle = document.getElementById("modal-title");
+const modalMeaning = document.getElementById("modal-meaning");
+const modalChips = document.getElementById("modal-chips");
+const modalDef = document.getElementById("modal-def");
+
+function showModal(ci) {
+  const c = DATA[ci];
+  modalTitle.textContent = c.name;
+  modalMeaning.textContent = c.meaning;
+  modalChips.innerHTML = "";
+  modalDef.style.display = "none";
+  c.words.forEach((w, wi) => {
+    const chip = document.createElement("span");
+    chip.className = "word-chip src-" + w[2];
+    chip.textContent = w[0];
+    chip.addEventListener("click", () => {
+      modalDef.textContent = w[0] + ": " + w[1];
+      modalDef.style.display = "block";
+    });
+    modalChips.appendChild(chip);
+  });
+  overlay.classList.add("show");
+}
+
+function showWordInModal(ci, wi) {
+  showModal(ci);
+  const w = DATA[ci].words[wi];
+  modalDef.textContent = w[0] + ": " + w[1];
+  modalDef.style.display = "block";
+}
+
+document.getElementById("modal-close").addEventListener("click", () => overlay.classList.remove("show"));
+overlay.addEventListener("click", e => { if (e.target === overlay) overlay.classList.remove("show"); });
+
+// ── Search ──
+const searchInput = document.getElementById("search");
+searchInput.addEventListener("input", () => {
+  const q = searchInput.value.toLowerCase().trim();
+  if (!q) { bubbles.forEach(b => { b.classList.remove("faded","highlighted"); }); return; }
+  bubbles.forEach(b => {
+    const match = b.dataset.word.includes(q) || b.dataset.def.toLowerCase().includes(q);
+    b.classList.toggle("highlighted", match);
+    b.classList.toggle("faded", !match);
+  });
+});
+
+// ── Filter ──
+document.querySelectorAll(".ctrl-btn").forEach(btn => {
+  btn.addEventListener("click", () => {
+    document.querySelectorAll(".ctrl-btn").forEach(b => b.classList.remove("active"));
+    btn.classList.add("active");
+    const f = btn.dataset.filter;
+    bubbles.forEach(b => {
+      if (f === "all") { b.style.display = ""; }
+      else { b.style.display = b.dataset.src === f ? "" : "none"; }
+    });
+  });
+});
+</script>
+</body>
+</html>
